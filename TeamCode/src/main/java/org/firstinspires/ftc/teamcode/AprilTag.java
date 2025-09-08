@@ -39,7 +39,6 @@ public class AprilTag extends LinearOpMode {
 
             for (AprilTagDetection detection : detections) {
                 int id = detection.id;
-
                 if (id == 21) {
                     pattern = new char[]{'g', 'p', 'p'};
                 } else if (id == 22) {
