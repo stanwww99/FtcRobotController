@@ -4,8 +4,8 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
-@Autonomous(name="FTC20252026AutoOp", group="Autonomous")
-public class FTC20252026AutoOp extends LinearOpMode {
+@Autonomous(name="AutoOp20252026", group="Autonomous")
+public class AutoOp20252026 extends LinearOpMode {
 
     private DcMotor leftFront, leftBack, rightFront, rightBack;
 

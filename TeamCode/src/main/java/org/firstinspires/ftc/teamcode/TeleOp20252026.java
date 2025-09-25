@@ -7,8 +7,8 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@TeleOp(name = "FTC20252026TeleOp", group = "TeleOp")
-public class FTC20252026TeleOp extends OpMode {
+@TeleOp(name = "TeleOp20252026", group = "TeleOp")
+public class TeleOp20252026 extends OpMode {
 
     // Drive motors (4): leftFront, leftBack, rightFront, rightBack
     private DcMotorEx leftFront, leftBack, rightFront, rightBack;
