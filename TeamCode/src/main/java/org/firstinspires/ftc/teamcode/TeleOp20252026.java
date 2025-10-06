@@ -5,64 +5,50 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 @TeleOp(name = "TeleOp20252026", group = "TeleOp")
 public class TeleOp20252026 extends OpMode {
 
-    // Drive motors (4): leftFront, leftBack, rightFront, rightBack
+    // Drive motors
     private DcMotorEx leftFront, leftBack, rightFront, rightBack;
 
-    // Intake motor
+    // Intake (single motor)
     private DcMotor intake;
 
-    // Shooter motors (2 identical)
+    // Shooter motors (encoder DC motors)
     private DcMotorEx shooterLeft, shooterRight;
 
-    // Servos: continuous-mode smart servo (carousel), normal-mode smart servo (shooter pusher)
-    private Servo carouselServo;       // continuous rotation servo (we model as position 0-1 mapped to 0-360)
-    private Servo shooterServo;        // normal servo (variable declared, left blank behavior)
+    // Servos: standard servo as pusher trigger; continuous-mode smart servo for carousel
+    private Servo pusherServo;
+    private Servo carouselServo; // using Servo API; continuous-mode smart servo expected to accept position changes
 
-    // Runtime / helpers
-    private final ElapsedTime runtime = new ElapsedTime();
+    // Operator variables
+    private double shooterTargetRPM = 0.0;
+    private boolean shootersAtTarget = false;
 
-    // Intake toggle state
-    private boolean intakeOnFull = false;
-    private boolean prevGamepad1Lb = false;
-
-    // Low speed mode variable
+    // Low speed mode boolean (driver RT)
     private boolean lowSpeedMode = false;
 
-    // Shooter RPM control
-    private double targetRpm = 0.0;
-    private final double RPM_TOLERANCE = 50.0; // RPM tolerance for "at target" check
-    private boolean bothShootersAtTarget = false;
+    // Carousel internal angle (degrees)
+    private double carouselAngle = 0.0;
 
-    // Carousel continuous servo angle tracking (degrees). Start at 0 degrees.
-    private double carouselAngleDeg = 0.0;
+    // Pusher servo positions (0..1). We'll compute relative moves for +/-80 degrees
+    private double pusherHomePos = 0.5; // center; tune to your hardware
+    private double pusherUpPos = pusherHomePos + 0.2667; // ~80 degrees out of ~300 deg range -> 80/300 = 0.2667
+    private boolean pusherBusy = false;
+    private ElapsedTime pusherTimer = new ElapsedTime();
 
-    // Shooter servo (normal) shot state
-    private boolean shooterServoActive = false;
-    private final double SHOOTER_ROTATE_DEG = 80.0; // up about 80 degrees (clockwise)
-    private double shooterServoRestPos = 0.5; // placeholder neutral pos 0..1 (user to tune)
-    private double shooterServoUpPos = shooterServoRestPos + (SHOOTER_ROTATE_DEG / 300.0); // map deg to 0..1 (approx)
-    private final ElapsedTime shooterServoTimer = new ElapsedTime();
-    private final double SHOOTER_UP_DURATION = 0.25; // seconds hold up before returning
-
-    // Encoder to RPM conversion (encoder ticks per motor revolution)
-    // Set to encoder ticks per revolution of the motor's output shaft.
-    // If your encoder/report returns ticks per revolution different from this, update it.
-    private final double ENCODER_TICKS_PER_REV = 28.0; // typical for Yellow Jacket example (adjust if different)
-
-    // Conversion helper: velocity from DcMotorEx.getVelocity() returns ticks per second for many SDKs.
-    // RPM = ticksPerSecond * 60 / ticksPerRev
-    // To set velocity we compute ticksPerSecond = targetRpm * ticksPerRev / 60
+    // Constants for encoder conversion
+    private static final double ENCODER_PPR = 28.0; // Yellow Jacket reported 28 PPR at output shaft
+    private static final double TICKS_PER_REV = ENCODER_PPR; // gear 1:1 assumed
 
     @Override
     public void init() {
-        // Map hardware (update names as needed)
-        leftFront = hardwareMap.get(DcMotorEx.class, "leftFront");
-        leftBack  = hardwareMap.get(DcMotorEx.class, "leftBack");
+        // Map hardware names - change these to match your robot's configuration file
+        leftFront  = hardwareMap.get(DcMotorEx.class, "leftFront");
+        leftBack   = hardwareMap.get(DcMotorEx.class, "leftBack");
         rightFront = hardwareMap.get(DcMotorEx.class, "rightFront");
         rightBack  = hardwareMap.get(DcMotorEx.class, "rightBack");
 
@@ -71,252 +57,221 @@ public class TeleOp20252026 extends OpMode {
         shooterLeft  = hardwareMap.get(DcMotorEx.class, "shooterLeft");
         shooterRight = hardwareMap.get(DcMotorEx.class, "shooterRight");
 
+        pusherServo = hardwareMap.get(Servo.class, "pusherServo");
         carouselServo = hardwareMap.get(Servo.class, "carouselServo");
-        shooterServo  = hardwareMap.get(Servo.class, "shooterServo");
 
-        // Motor directions - adjust if actual wiring produces reversed motion
-        leftFront.setDirection(DcMotor.Direction.FORWARD);
-        leftBack.setDirection(DcMotor.Direction.FORWARD);
-        rightFront.setDirection(DcMotor.Direction.REVERSE);
-        rightBack.setDirection(DcMotor.Direction.REVERSE);
+        // Drive directions: adjust if motors are inverted on your bot
+        leftFront.setDirection(DcMotorSimple.Direction.FORWARD);
+        leftBack.setDirection(DcMotorSimple.Direction.FORWARD);
+        rightFront.setDirection(DcMotorSimple.Direction.REVERSE);
+        rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        shooterLeft.setDirection(DcMotor.Direction.FORWARD);
-        shooterRight.setDirection(DcMotor.Direction.REVERSE);
+        // Reset encoders for shooter motors and set run mode to use encoders for velocity control
+        shooterLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        shooterRight.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        shooterLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        // Ensure motors stop
-        leftFront.setPower(0);
-        leftBack.setPower(0);
-        rightFront.setPower(0);
-        rightBack.setPower(0);
-        intake.setPower(0);
-        shooterLeft.setPower(0);
-        shooterRight.setPower(0);
+        // Zero-power behavior (coast or brake)
+        leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        rightFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        rightBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        // Initialize servos
-        // Continuous servo starts at 0 degrees -> map to position 0.0
-        carouselAngleDeg = 0.0;
-        carouselServo.setPosition(angleToServoPosition(carouselAngleDeg)); // set to 0
+        // Set initial servo positions
+        pusherServo.setPosition(pusherHomePos);
+        carouselServo.setPosition(0.5); // mid position baseline; we'll map angles to 0..1
 
-        // shooterServo left blank but define neutral; operator may calibrate shooterServoRestPos before match
-        shooterServo.setPosition(shooterServoRestPos);
-
-        telemetry.addData("Status", "Initialized");
+        telemetry.addData("Init", "Complete");
         telemetry.update();
     }
 
     @Override
     public void start() {
-        runtime.reset();
-        shooterServoTimer.reset();
+        // nothing special on start
     }
 
     @Override
     public void loop() {
-        // -------------------------
-        // DRIVER (gamepad1) controls
-        // -------------------------
-        // Low speed mode - if RT touched or held -> limit to 30%
-        lowSpeedMode = gamepad1.right_trigger > 0.05;
+        // ---------- DRIVER controls (gamepad1) ----------
+        // Left stick controls translation (forward/back/strafe) with magnitude-based speed
+        double lf = -gamepad1.left_stick_y; // forward/back
+        double ls = gamepad1.left_stick_x;  // strafe left/right
 
-        // Driving: left joystick controls translation (strafe + forward/back)
-        double leftX = gamepad1.left_stick_x;    // strafe: left negative, right positive
-        double leftY = -gamepad1.left_stick_y;   // forward positive (invert joystick)
-        // Right joystick controls rotation
-        double rotate = gamepad1.right_stick_x;  // left negative -> CCW, right positive -> CW
+        // Right stick controls rotation
+        double rotation = gamepad1.right_stick_x; // left negative, right positive
 
-        // Compute driver powers (simple mecanum-like mixing for holonomic strafing)
-        // Basic arcade combination: forward/back + strafe + rotate
-        double rf = leftY - leftX + rotate; // rightFront
-        double rb = leftY + leftX + rotate; // rightBack
-        double lf = leftY + leftX - rotate; // leftFront
-        double lb = leftY - leftX - rotate; // leftBack
+        // Low speed mode if right trigger held (limit to 30%)
+        lowSpeedMode = gamepad1.right_trigger > 0.1;
+        double speedLimit = lowSpeedMode ? 0.3 : 1.0;
 
-        // Scale so max magnitude is <= 1
-        double max = Math.max(
-                Math.max(Math.abs(lf), Math.abs(lb)),
-                Math.max(Math.abs(rf), Math.abs(rb))
-        );
+        // Compute mecanum-style mixing: using typical formula for mecanum drive
+        double drive = lf;      // forward/back
+        double strafe = ls;     // left/right strafing
+        double turn = rotation; // rotation component
+
+        double leftFrontPower  = drive + strafe + turn;
+        double leftBackPower   = drive - strafe + turn;
+        double rightFrontPower = drive - strafe - turn;
+        double rightBackPower  = drive + strafe - turn;
+
+        // Normalize wheel powers to keep within [-1,1]
+        double max = Math.abs(leftFrontPower);
+        max = Math.max(max, Math.abs(leftBackPower));
+        max = Math.max(max, Math.abs(rightFrontPower));
+        max = Math.max(max, Math.abs(rightBackPower));
         if (max > 1.0) {
-            lf /= max;
-            lb /= max;
-            rf /= max;
-            rb /= max;
+            leftFrontPower  /= max;
+            leftBackPower   /= max;
+            rightFrontPower /= max;
+            rightBackPower  /= max;
         }
 
-        // Apply low speed scaling if engaged
-        double speedScale = lowSpeedMode ? 0.30 : 1.0;
-        lf *= speedScale;
-        lb *= speedScale;
-        rf *= speedScale;
-        rb *= speedScale;
+        // Apply speed limit scaled by joystick magnitude (already scaled by joystick values)
+        leftFront.setPower(leftFrontPower * speedLimit);
+        leftBack.setPower(leftBackPower * speedLimit);
+        rightFront.setPower(rightFrontPower * speedLimit);
+        rightBack.setPower(rightBackPower * speedLimit);
 
-        // Set drive powers
-        leftFront.setPower(clamp(lf));
-        leftBack.setPower(clamp(lb));
-        rightFront.setPower(clamp(rf));
-        rightBack.setPower(clamp(rb));
-
-        // Intake: gamepad1 LB toggle (press once to start full intake, press again to go to slow resting)
-        if (gamepad1.left_bumper && !prevGamepad1Lb) {
-            intakeOnFull = !intakeOnFull;
-        }
-        prevGamepad1Lb = gamepad1.left_bumper;
-
-        // Intake power modes:
-        // - intakeOnFull true => full forward (1.0)
-        // - if intakeOnFull false and not reversed by LT => stopped/slight holding speed (0.15)
-        // - LT (left trigger on driver) reverses intake proportionally (more pull => faster reverse)
-        double intakePower = 0.0;
-        double driverLt = gamepad1.left_trigger;
-        if (driverLt > 0.05) {
-            // reverse intake proportional to amount pulled
-            intakePower = -driverLt; // negative = reverse
-        } else {
-            if (intakeOnFull) {
-                intakePower = 1.0;
-            } else {
-                intakePower = 0.15; // slow resting state
-            }
-        }
-        intake.setPower(clamp(intakePower));
-
-        // -------------------------
-        // OPERATOR (gamepad2) controls
-        // -------------------------
-        // Shooter RPM presets
+        // ---------- OPERATOR controls (gamepad2) ----------
+        // Shooter RPM selection
         if (gamepad2.x) {
-            targetRpm = 1000.0;
-            setShooterTargetRpm(targetRpm);
+            shooterTargetRPM = 1000.0;
+            setShooterRPM(shooterTargetRPM);
         } else if (gamepad2.a) {
-            targetRpm = 2500.0;
-            setShooterTargetRpm(targetRpm);
+            shooterTargetRPM = 2500.0;
+            setShooterRPM(shooterTargetRPM);
         } else if (gamepad2.b) {
-            targetRpm = 5000.0;
-            setShooterTargetRpm(targetRpm);
+            shooterTargetRPM = 5000.0;
+            setShooterRPM(shooterTargetRPM);
         } else if (gamepad2.y) {
-            // stop shooter motors
-            targetRpm = 0.0;
-            shooterLeft.setPower(0.0);
-            shooterRight.setPower(0.0);
+            shooterTargetRPM = 0.0;
+            stopShooter();
         }
 
-        // Update shooter at-target boolean based on measured RPMs
-        double rpmLeft = getMotorRpm(shooterLeft);
-        double rpmRight = getMotorRpm(shooterRight);
-        bothShootersAtTarget = (Math.abs(rpmLeft - targetRpm) <= RPM_TOLERANCE)
-                && (Math.abs(rpmRight - targetRpm) <= RPM_TOLERANCE)
-                && (targetRpm > 0.0);
+        // Update shootersAtTarget boolean using a tolerance (5% error)
+        double leftRPM  = readMotorRPM(shooterLeft);
+        double rightRPM = readMotorRPM(shooterRight);
+        shootersAtTarget = isAtTargetRPM(leftRPM, shooterTargetRPM) && isAtTargetRPM(rightRPM, shooterTargetRPM);
 
-        // Operator RT = shoot ball: rotate normal servo up then back down ~80 degrees
-        if (gamepad2.right_trigger > 0.05 && !shooterServoActive) {
-            // start shoot sequence
-            shooterServoActive = true;
-            shooterServoTimer.reset();
-            // rotate up (clockwise)
-            shooterServo.setPosition(clampServo(shooterServoUpPos));
+        // RT on gamepad2 triggers pusher servo: rotate up 80 degrees then back down
+        if (gamepad2.right_trigger > 0.1 && !pusherBusy) {
+            pusherBusy = true;
+            // move up
+            pusherServo.setPosition(clampServo(pusherUpPos));
+            pusherTimer.reset();
         }
 
-        if (shooterServoActive) {
-            if (shooterServoTimer.seconds() >= SHOOTER_UP_DURATION) {
-                // return to rest (counterclockwise)
-                shooterServo.setPosition(clampServo(shooterServoRestPos));
-                shooterServoActive = false;
+        if (pusherBusy) {
+            // wait 300 ms at up position then return
+            if (pusherTimer.milliseconds() > 300 && pusherTimer.milliseconds() < 700) {
+                // return to home
+                pusherServo.setPosition(clampServo(pusherHomePos));
+            } else if (pusherTimer.milliseconds() >= 700) {
+                pusherBusy = false;
+                pusherServo.setPosition(clampServo(pusherHomePos));
             }
         }
 
-        // Carousel continuous servo controls (gamepad2)
-        // LB + DPad R -> rotate 60 degrees right (add +60)
-        // LB + DPad L -> rotate 60 degrees left (add -60)
-        // DPad R -> rotate 120 degrees right (+120)
-        // DPad L -> rotate 120 degrees left (-120)
-        // We modify carouselAngleDeg and set servo position accordingly.
-        if (gamepad2.left_bumper && gamepad2.dpad_right) {
-            carouselAngleDeg += 60.0;
-            normalizeCarouselAngle();
-            carouselServo.setPosition(angleToServoPosition(carouselAngleDeg));
-        } else if (gamepad2.left_bumper && gamepad2.dpad_left) {
-            carouselAngleDeg -= 60.0;
-            normalizeCarouselAngle();
-            carouselServo.setPosition(angleToServoPosition(carouselAngleDeg));
-        } else if (gamepad2.dpad_right) {
-            carouselAngleDeg += 120.0;
-            normalizeCarouselAngle();
-            carouselServo.setPosition(angleToServoPosition(carouselAngleDeg));
-        } else if (gamepad2.dpad_left) {
-            carouselAngleDeg -= 120.0;
-            normalizeCarouselAngle();
-            carouselServo.setPosition(angleToServoPosition(carouselAngleDeg));
+        // Carousel control using D-pad and LB modifier
+        boolean lb = gamepad2.left_bumper;
+        boolean dpadRight = gamepad2.dpad_right;
+        boolean dpadLeft  = gamepad2.dpad_left;
+
+        if (lb && dpadRight) {
+            carouselAngle += 60.0;
+            setCarouselAngle(carouselAngle);
+        } else if (lb && dpadLeft) {
+            carouselAngle -= 60.0;
+            setCarouselAngle(carouselAngle);
+        } else if (dpadRight) {
+            carouselAngle += 120.0;
+            setCarouselAngle(carouselAngle);
+        } else if (dpadLeft) {
+            carouselAngle -= 120.0;
+            setCarouselAngle(carouselAngle);
         }
 
-        // Telemetry - show shooter RPMs and whether both are at desired RPM
-        telemetry.addData("Target RPM", "%.0f", targetRpm);
-        telemetry.addData("Shooter RPM Left", "%.1f", rpmLeft);
-        telemetry.addData("Shooter RPM Right", "%.1f", rpmRight);
-        telemetry.addData("BothAtTarget", bothShootersAtTarget);
+        // Intake (optional) - map to gamepad2 left/right sticks or triggers if you want
+        if (gamepad2.left_trigger > 0.1) {
+            intake.setPower(gamepad2.left_trigger); // intake in
+        } else if (gamepad2.left_bumper) {
+            intake.setPower(-0.6); // reverse out
+        } else {
+            intake.setPower(0);
+        }
+
+        // Telemetry: display RPMs and target boolean
+        telemetry.addData("Shooter Target RPM", "%.0f", shooterTargetRPM);
+        telemetry.addData("Left Shooter RPM", "%.1f", leftRPM);
+        telemetry.addData("Right Shooter RPM", "%.1f", rightRPM);
+        telemetry.addData("ShootersAtTarget", shootersAtTarget);
         telemetry.addData("LowSpeedMode", lowSpeedMode);
         telemetry.update();
     }
 
     @Override
     public void stop() {
-        // Stop everything
+        stopShooter();
         leftFront.setPower(0);
         leftBack.setPower(0);
         rightFront.setPower(0);
         rightBack.setPower(0);
-
         intake.setPower(0);
+    }
+
+    // ---------- Helper functions ----------
+
+    // Set shooter target velocity in RPM using DcMotorEx.setVelocity (units: ticks per second)
+    private void setShooterRPM(double rpm) {
+        if (rpm <= 0.0) {
+            stopShooter();
+            return;
+        }
+        double ticksPerSec = rpmToTicksPerSecond(rpm);
+        shooterLeft.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterLeft.setVelocity(ticksPerSec);
+        shooterRight.setVelocity(ticksPerSec);
+    }
+
+    private void stopShooter() {
         shooterLeft.setPower(0);
         shooterRight.setPower(0);
     }
 
-    // -------------------------
-    // Helper methods
-    // -------------------------
-    private void setShooterTargetRpm(double rpm) {
-        if (rpm <= 0.0) {
-            shooterLeft.setPower(0.0);
-            shooterRight.setPower(0.0);
-            return;
-        }
-
-        // Convert rpm to ticks per second for setVelocity
-        double ticksPerSecond = rpm * ENCODER_TICKS_PER_REV / 60.0;
-        // The SDK's setVelocity expects ticks per second for DcMotorEx in many builds;
-        // if your SDK expects different units, adapt accordingly.
-        shooterLeft.setVelocity(ticksPerSecond);
-        shooterRight.setVelocity(ticksPerSecond);
+    // Convert RPM to encoder ticks per second for DcMotorEx.setVelocity
+    private double rpmToTicksPerSecond(double rpm) {
+        return (rpm / 60.0) * TICKS_PER_REV;
     }
 
-    private double getMotorRpm(DcMotorEx motor) {
-        // getVelocity() returns encoder ticks per second for many versions of the SDK.
-        // Convert to RPM.
-        double ticksPerSecond = motor.getVelocity(); // check your SDK: this may be ticks/sec
-        return ticksPerSecond * 60.0 / ENCODER_TICKS_PER_REV;
+    // Read RPM from a DcMotorEx using velocity in ticks/sec
+    private double readMotorRPM(DcMotorEx motor) {
+        // getVelocity returns ticks per second when using an encoder
+        double ticksPerSec = motor.getVelocity();
+        double rpm = (ticksPerSec / TICKS_PER_REV) * 60.0;
+        return rpm;
     }
 
-    private double clamp(double v) {
-        if (v > 1.0) return 1.0;
-        if (v < -1.0) return -1.0;
-        return v;
+    // Check whether actual rpm is within tolerance (5% default)
+    private boolean isAtTargetRPM(double actualRPM, double targetRPM) {
+        if (targetRPM <= 0.0) return actualRPM == 0.0;
+        double tol = Math.max(50.0, targetRPM * 0.05); // at least 50 RPM tolerance for low targets
+        return Math.abs(actualRPM - targetRPM) <= tol;
+    }
+
+    // Map carouselAngle (degrees) to 0..1 servo position
+    private void setCarouselAngle(double angleDeg) {
+        // Normalize angle to [0,360)
+        carouselAngle = ((angleDeg % 360.0) + 360.0) % 360.0;
+        // Map 0..360 to 0..1
+        double pos = carouselAngle / 360.0;
+        carouselServo.setPosition(clampServo(pos));
     }
 
     private double clampServo(double pos) {
-        if (pos < 0.0) return 0.0;
-        if (pos > 1.0) return 1.0;
+        if (pos < 0) return 0.0;
+        if (pos > 1) return 1.0;
         return pos;
-    }
-
-    private double angleToServoPosition(double angleDeg) {
-        // Map angle 0..360 to servo position 0..1
-        double a = angleDeg % 360.0;
-        if (a < 0) a += 360.0;
-        return clampServo(a / 360.0);
-    }
-
-    private void normalizeCarouselAngle() {
-        // keep angle in -180..+180 range for easier reasoning (optional)
-        while (carouselAngleDeg > 180.0) carouselAngleDeg -= 360.0;
-        while (carouselAngleDeg <= -180.0) carouselAngleDeg += 360.0;
     }
 }
