@@ -1,10 +1,11 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Servo;
 
-@TeleOp(name = "Set0DegreesServoMotor", group = "Examples")
+@Autonomous(name = "Set0DegreesServoMotor", group = "Autonomous")
 public class Set0DegreesServoMotor extends LinearOpMode {
 
     private Servo carouselServo;
