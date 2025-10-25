@@ -89,7 +89,7 @@ public class AutoOp20252026 extends LinearOpMode {
         carousel.setPower(0.0); // initialize carousel motor to 0
 
         // Smart servo (Standard Mode ±150°)
-        smartServo = hardwareMap.get(Servo.class, "smartServo");
+        smartServo = hardwareMap.get(Servo.class, "pusher");
         smartServo.setPosition(0.0);
 
         // Shooter motor reference: goBILDA 5202 1:1, 6000 rpm
