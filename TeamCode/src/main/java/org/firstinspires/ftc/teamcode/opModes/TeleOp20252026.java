@@ -188,13 +188,13 @@ public class TeleOp20252026 extends LinearOpMode {
             // Buttons on gamepad2 to set RPM
             if (gamepad2.x) {
                 // set motor to reach 1000 RPM setpoint; targetRPM variable to 10% less than set RPM
-                setShooterTargetRPM(900.0);
+                setShooterTargetRPM(1000.0);
             }
             if (gamepad2.a) {
-                setShooterTargetRPM(2250.0);
+                setShooterTargetRPM(2500.0);
             }
             if (gamepad2.b) {
-                setShooterTargetRPM(4500.0);
+                setShooterTargetRPM(5000.0);
             }
             if (gamepad2.y) {
                 // stop shooter
