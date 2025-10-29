@@ -21,7 +21,7 @@ public class ServoPosSweepStopGuaranteed extends LinearOpMode {
 
         // Safety: set initial position to 0 degrees (converted)
         double pos0 = degreesToPosition(0.0);    // should be 0.5 for ±150° mapping
-        double pos60 = degreesToPosition(60.0);  // should be 0.7 for ±150° mapping
+        double pos80 = degreesToPosition(80.0);  // should be 0.7 for ±150° mapping
 
         carouselServo.setPosition(pos0);
 
@@ -37,7 +37,7 @@ public class ServoPosSweepStopGuaranteed extends LinearOpMode {
             sleep(5000);
 
             // Set to 60 degrees and hold
-            carouselServo.setPosition(pos60);
+            carouselServo.setPosition(pos80);
             sleep(5000);
         }
 

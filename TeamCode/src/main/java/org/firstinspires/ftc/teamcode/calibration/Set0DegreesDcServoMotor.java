@@ -15,7 +15,7 @@ public class Set0DegreesDcServoMotor extends LinearOpMode {
     private static final double GEAR_RATIO = 99.5;
     // Name in configuration
     private static final String DC_MOTOR_NAME = "carousel";
-    private static final String SERVO_NAME = "carouselServo";
+    private static final String SERVO_NAME = "pusher";
     // ----------------------------------------
 
     private DcMotor leftMotor = null;

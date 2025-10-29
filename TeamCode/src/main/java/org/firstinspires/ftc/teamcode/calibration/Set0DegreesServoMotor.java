@@ -15,7 +15,7 @@ public class Set0DegreesServoMotor extends LinearOpMode {
     @Override
     public void runOpMode() {
         // Initialize servo from configuration (name must match Robot Config)
-        carouselServo = hardwareMap.get(Servo.class, "carouselServo");
+        carouselServo = hardwareMap.get(Servo.class, "pusher");
 
         // Convert degrees to servo position 0.0 - 1.0
         double degrees = 0.0;
