@@ -64,9 +64,9 @@ public class TeleOp20252026 extends OpMode {
         rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
 
         // Expansion hub motors
-        carousel = hardwareMap.get(DcMotorEx.class, "Carousel");
-        intake   = hardwareMap.get(DcMotorEx.class, "Intake");
-        shooter  = hardwareMap.get(DcMotorEx.class, "Shooter");
+        carousel = hardwareMap.get(DcMotorEx.class, "carousel");
+        intake   = hardwareMap.get(DcMotorEx.class, "intake");
+        shooter  = hardwareMap.get(DcMotorEx.class, "shooter");
 
         // Set directions for expansion motors as needed
         carousel.setDirection(DcMotorSimple.Direction.FORWARD); // logical forward
