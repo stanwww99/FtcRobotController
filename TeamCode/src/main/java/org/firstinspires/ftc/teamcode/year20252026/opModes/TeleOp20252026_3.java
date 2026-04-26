@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.year20252026.opModes;
 
-
 import android.annotation.SuppressLint;
 import android.graphics.Color;
 
@@ -21,116 +20,160 @@ import java.util.Arrays;
 
 @TeleOp(name = "TeleOp20252026_3", group = "TeleOp")
 public class TeleOp20252026_3 extends LinearOpMode {
-    // Drive motors (Control Hub)
+
+    // -----------------------------
+    // DRIVE MOTORS (Control Hub)
+    // -----------------------------
     private DcMotor leftFront, rightFront, leftBack, rightBack;
-    // Expansion Hub motors
-    private Carousel carousel;      // GoBilda 60 RPM gearbox (99.5:1) - encoder used for angle control
-    private DcMotor intake;          // Tetrix
-    private Shooter shooter;       // GoBilda 6000 RPM motor (1:1) with encoder
 
+    // -----------------------------
+    // MECHANISM SUBSYSTEMS
+    // -----------------------------
+    private Carousel carousel;     // Rotating ball selector
+    private DcMotor intake;        // Tetrix intake motor
+    private Shooter shooter;       // Flywheel shooter subsystem
+
+    // -----------------------------
+    // FIELD-ORIENTED DRIVE
+    // -----------------------------
     private IMU imu;
+    private boolean fieldDriveMode = true;
 
+    // -----------------------------
+    // CAROUSEL LOGICAL ANGLE
+    // -----------------------------
     private int carouselAngleDeg = 0;
-    //Intake State
+
+    // -----------------------------
+    // INTAKE STATE MACHINE
+    // -----------------------------
     private boolean intakeActive = false;
-    private long currTimeIntake=0;
+    private long currTimeIntake = 0;
 
+    // -----------------------------
+    // SHOOTER STATE MACHINE
+    // -----------------------------
     private long currTimeShooter;
-    //Carousel state
-//    private boolean rotateActive = false;
-//    private long currPos = 0;
 
-//    private double required = 0;
-
+    // -----------------------------
+    // COLOR SENSORS (FRONT + BACK)
+    // -----------------------------
     private NormalizedColorSensor colorSensorFront;
     private NormalizedColorSensor colorSensorBack;
 
-    private int mode = 2; //1 intake 2//shoot
+    // Mode 1 = intake pattern, Mode 2 = shooting pattern
+    private int mode = 2;
 
+    // Pattern arrays (3-ball carousel)
     private char[] colorIntake = {'a', 'a', 'a'};
-    private char[] colorShoot = {'a','a','a'};
-    private char front = 'a';
-    private char back = 'a';
+    private char[] colorShoot  = {'a', 'a', 'a'};
 
-    private boolean fieldDriveMode = true;
+    // Current detected colors
+    private char front = 'a';
+    private char back  = 'a';
 
     @Override
     public void runOpMode() throws InterruptedException {
+
         initHardware();
+
         telemetry.clear();
         telemetry.addLine("Ready. Press Play to start.");
         telemetry.update();
+
         waitForStart();
-        // Main loop
+
+        // -----------------------------
+        // MAIN TELEOP LOOP
+        // -----------------------------
         while (opModeIsActive()) {
+
+            // -----------------------------
+            // DRIVE CONTROL (gamepad1)
+            // -----------------------------
             drive();
-            // --- INTAKE CONTROL on shooter (gamepad1) ---
-            if(gamepad1.y && !intakeActive){
+
+            // -----------------------------
+            // SHOOTER-AS-INTAKE (gamepad1 Y)
+            // Reverse shooter motor to suck in balls
+            // -----------------------------
+            if (gamepad1.y && !intakeActive) {
                 shooter.start(-1200);
-                // DcMotorEx allows setting velocity in ticks per second
                 intakeActive = true;
-//                currTimeIntake = System.currentTimeMillis();
             }
+
             doAll();
-            //timeout for shooter intake
-            if(intakeActive && !gamepad1.y){
+
+            // Stop shooter-intake when Y is released
+            if (intakeActive && !gamepad1.y) {
                 intakeActive = false;
                 shooter.stop();
             }
+
             doAll();
 
-            //The real intake
+            // -----------------------------
+            // REAL INTAKE MOTOR (gamepad1)
+            // -----------------------------
             double intakePower = 0.0;
+
             if (gamepad1.left_bumper) {
-                intakePower = -1.0; // backwards full power
+                intakePower = -1.0;  // reverse full speed
             } else if (gamepad1.left_trigger > 0.05) {
-                intakePower = gamepad1.left_trigger; // forward with analog speed from trigger
-            } else {
-                intakePower = 0.0;
+                intakePower = gamepad1.left_trigger;  // analog forward
             }
-            // A limits max to 30%
+
+            // A button = slow mode (30%)
             if (gamepad1.a) intakePower *= 0.30;
+
             intake.setPower(intakePower);
 
+            // Toggle field-oriented drive
             if (gamepad1.backWasReleased())
                 fieldDriveMode = !fieldDriveMode;
 
-
-            // --- SHOOTER CONTROL with servo (gamepad2) ---
-            // Buttons: X=1000 RPM, A=2500 RPM, B=4000 RPM, shoot and stop motor once done
-            // When pressed, set motor velocity and update currentRPM and targetRPM logic.
-
-            // We'll set shooter velocity in ticks per second, using SHOOTER_PPR pulses per rev:
-            // desiredRPM -> ticksPerSec = desiredRPM * (SHOOTER_PPR / 60)
+            // -----------------------------
+            // SHOOTER RPM CONTROL (gamepad2)
+            // -----------------------------
             doAll();
             getShooterControls();
-
             doAll();
-            if(shooter.isShooterActive() && !intakeActive){
+
+            // When shooter reaches target RPM → fire servo
+            if (shooter.isShooterActive() && !intakeActive) {
                 doAll();
-                if(shooter.isTargetMet() && !shooter.isPusherActive()){
+
+                if (shooter.isTargetMet() && !shooter.isPusherActive()) {
                     shooter.push();
                     currTimeShooter = System.currentTimeMillis();
+
+                    // Reset color arrays after shooting
                     colorShoot[1] = 'a';
                     colorIntake[1] = 'a';
                 }
             }
+
             doAll();
 
-            //stop the shooter 200ms after servo pushed
-            if(shooter.isPusherActive() && System.currentTimeMillis() - currTimeShooter >= 200){
+            // Retract servo after 200 ms
+            if (shooter.isPusherActive() &&
+                    System.currentTimeMillis() - currTimeShooter >= 200) {
                 shooter.stop();
             }
+
             doAll();
 
-            // --- Carousel CONTROL (gamepad2) ---
-            if(!carousel.isRotateActive()) {
+            // -----------------------------
+            // CAROUSEL CONTROL (gamepad2)
+            // -----------------------------
+            if (!carousel.isRotateActive()) {
                 manualCarouselControls();
                 autoCarouselControls();
             }
 
-            // Check if move is complete or left_bumper pressed to cancel move
-            if (carousel.isFinished() || carousel.isRotateActive() && gamepad2.back) {
+            // Stop carousel rotation when finished or cancelled
+            if (carousel.isFinished() ||
+                    (carousel.isRotateActive() && gamepad2.back)) {
                 carousel.stop();
             }
 
@@ -138,30 +181,32 @@ public class TeleOp20252026_3 extends LinearOpMode {
         }
     }
 
-    private void getShooterControls(){
-        if(!shooter.isShooterActive()) {
-            if (gamepad2.x) {
-                shooter.start(1000);
-            }
-            if (gamepad2.a) {
-                shooter.start(2500);
-            }
-            if (gamepad2.b) {
-                shooter.start(4500);
-            }
+    // -----------------------------
+    // SHOOTER BUTTON LOGIC (gamepad2)
+    // -----------------------------
+    private void getShooterControls() {
+
+        if (!shooter.isShooterActive()) {
+            if (gamepad2.x) shooter.start(1000);
+            if (gamepad2.a) shooter.start(2500);
+            if (gamepad2.b) shooter.start(4500);
         }
-        if (gamepad2.y) {
-            shooter.stop();
-        }
+
+        if (gamepad2.y) shooter.stop();
     }
-    private void initHardware(){
-        // --- Hardware mapping ---
+
+    // -----------------------------
+    // HARDWARE INITIALIZATION
+    // -----------------------------
+    private void initHardware() {
+
         leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         leftBack   = hardwareMap.get(DcMotor.class, "leftBack");
         rightBack  = hardwareMap.get(DcMotor.class, "rightBack");
 
-        if((imu = MyGyro.imu) == null){
+        // Retrieve IMU from MyGyro (shared between Auto + TeleOp)
+        if ((imu = MyGyro.imu) == null) {
             imu = MyGyro.createIMU(hardwareMap);
         }
 
@@ -170,86 +215,104 @@ public class TeleOp20252026_3 extends LinearOpMode {
         shooter  = new Shooter(hardwareMap);
 
         colorSensorFront = hardwareMap.get(NormalizedColorSensor.class, "colorSensorFront");
-        colorSensorBack = hardwareMap.get(NormalizedColorSensor.class, "colorSensorBack");
-        // Set drive motor directions (adjust if your robot's wiring is different)
+        colorSensorBack  = hardwareMap.get(NormalizedColorSensor.class, "colorSensorBack");
+
+        // Drive motor directions
         leftFront.setDirection(DcMotorSimple.Direction.FORWARD);
         leftBack.setDirection(DcMotorSimple.Direction.FORWARD);
         rightFront.setDirection(DcMotorSimple.Direction.REVERSE);
         rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
 
-        // Brake when power is zero for precise stopping
+        // Brake mode for precise stopping
         leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        // Intake motor direction default
+        // Intake defaults
         intake.setDirection(DcMotorSimple.Direction.FORWARD);
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
 
+    // -----------------------------
+    // TELEMETRY
+    // -----------------------------
     @SuppressLint("DefaultLocale")
-    private void updateTelemetry(){
+    private void updateTelemetry() {
+
         telemetry.clearAll();
-        telemetry.addData("Carousel Degree: ", carouselAngleDeg);
-        if(mode == 1){
+
+        telemetry.addData("Carousel Degree", carouselAngleDeg);
+
+        if (mode == 1) {
             telemetry.addData("ColorFront", front);
-            telemetry.addData("Intake pattern (Front, Other 1, Other 2) Clockwise:", Arrays.toString(colorIntake));
-        }
-        if(mode == 2){
-            telemetry.addData("ColorBack", back);
-            telemetry.addData("Shoot  (Other 1, Center, Other 2) Clockwise:", Arrays.toString(colorShoot));
+            telemetry.addData("Intake Pattern (Front, Other1, Other2)", Arrays.toString(colorIntake));
         }
 
-        telemetry.addData("Current Shooter RPM:", shooter.getCurrentRPM());
-        telemetry.addData("Current Target RPM:", String.format("%.1f", shooter.getTargetRPM()));
-        telemetry.addData("Current Amperage ", shooter.getMotor().getCurrent(CurrentUnit.AMPS));
-        telemetry.addData("Target RPM Met?: ", shooter.isTargetMet());
-        telemetry.addData("Carousel Positon", carousel.getMotor().getCurrentPosition());
+        if (mode == 2) {
+            telemetry.addData("ColorBack", back);
+            telemetry.addData("Shoot Pattern (Other1, Center, Other2)", Arrays.toString(colorShoot));
+        }
+
+        telemetry.addData("Current Shooter RPM", shooter.getCurrentRPM());
+        telemetry.addData("Target RPM", String.format("%.1f", shooter.getTargetRPM()));
+        telemetry.addData("Shooter Amps", shooter.getMotor().getCurrent(CurrentUnit.AMPS));
+        telemetry.addData("Target RPM Met?", shooter.isTargetMet());
+
+        telemetry.addData("Carousel Position", carousel.getMotor().getCurrentPosition());
         telemetry.addData("Carousel Power", carousel.getMotor().getPower());
         telemetry.addData("Carousel Active", carousel.isRotateActive());
         telemetry.addData("Last Position", carousel.getPosition());
-        telemetry.addData("Carousel Delta", carousel.getMotor().getCurrentPosition() - carousel.getPosition());
-        telemetry.addData("Carousel AMP", carousel.getMotor().getCurrent(CurrentUnit.AMPS));
+        telemetry.addData("Carousel Delta",
+                carousel.getMotor().getCurrentPosition() - carousel.getPosition());
+        telemetry.addData("Carousel Amps",
+                carousel.getMotor().getCurrent(CurrentUnit.AMPS));
+
         telemetry.update();
     }
-    // --- Helper methods ---
 
-    private void drive(){
-        // --- DRIVE CONTROL (gamepad1) ---
-        double lx = gamepad1.left_stick_x;   // left-stick left/right: strafing
-        double ly = -gamepad1.left_stick_y;   // left-stick up/down: forward/back
-        double rx = -gamepad1.right_stick_x;  // right-stick left/right: rotation
+    // -----------------------------
+    // DRIVE SYSTEM (MECANUM + FIELD ORIENTED)
+    // -----------------------------
+    private void drive() {
 
-        if(fieldDriveMode) {
+        double lx = gamepad1.left_stick_x;     // strafe
+        double ly = -gamepad1.left_stick_y;    // forward/back
+        double rx = -gamepad1.right_stick_x;   // rotation
+
+        // FIELD-ORIENTED DRIVE
+        if (fieldDriveMode) {
+
             if (gamepad1.bWasPressed()) {
                 imu.resetYaw();
             }
-            // Compute base motion powers
-            // Mecanum drive mixing: forward/back = ly, strafe = lx, rotate = rx
+
             double theta = Math.atan2(ly, lx);
             double r = Math.hypot(lx, ly);
 
-            theta = AngleUnit.normalizeRadians(theta - imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS));
+            theta = AngleUnit.normalizeRadians(
+                    theta - imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS)
+            );
+
             ly = r * Math.sin(theta);
             lx = r * Math.cos(theta);
         }
 
-        // Compute base motion powers
-        // Mecanum drive mixing: forward/back = ly, strafe = lx, rotate = rx
+        // Mecanum mixing
         double lf = ly + lx + rx;
         double rf = ly - lx - rx;
         double lb = ly - lx + rx;
         double rb = ly + lx - rx;
 
-        // Normalize
-        lf = rangeClip(-lf, -1.0,1.0);
-        rf = rangeClip(-rf, -1.0,1.0);
-        lb = rangeClip(-lb, -1.0,1.0);
-        rb = rangeClip(-rb, -1.0,1.0);
+        // Normalize and invert
+        lf = rangeClip(-lf, -1.0, 1.0);
+        rf = rangeClip(-rf, -1.0, 1.0);
+        lb = rangeClip(-lb, -1.0, 1.0);
+        rb = rangeClip(-rb, -1.0, 1.0);
 
-        // Low speed mode: RT on gamepad1 limits to 30%
+        // Slow mode (RT)
         double speedLimit = gamepad1.right_trigger > 0.05 ? 0.5 : 1.0;
+
         leftFront.setPower(lf * speedLimit);
         rightFront.setPower(rf * speedLimit);
         leftBack.setPower(lb * speedLimit);
@@ -260,9 +323,13 @@ public class TeleOp20252026_3 extends LinearOpMode {
         return Math.max(min, Math.min(max, v));
     }
 
-    private void autoCarouselControls(){
-        //DPad Right/Left -> ±120°
+    // -----------------------------
+    // CAROUSEL AUTOMATIC ROTATION (gamepad2 D-pad)
+    // -----------------------------
+    private void autoCarouselControls() {
+
         int rotateDegree = 0;
+
         if (gamepad2.dpad_right) {
             rotateDegree = 120;
             carousel.rotateThirdRight();
@@ -271,151 +338,180 @@ public class TeleOp20252026_3 extends LinearOpMode {
             rotateDegree = -120;
             carousel.rotateThirdLeft();
         }
-        if(gamepad2.dpad_up) {
+        if (gamepad2.dpad_up) {
             rotateDegree = 60;
             carousel.rotateSixthRight();
         }
-        if(gamepad2.dpad_down){
+        if (gamepad2.dpad_down) {
             rotateDegree = -60;
             carousel.rotateSixthLeft();
         }
 
         shift(rotateDegree);
 
-        if(gamepad2.leftBumperWasPressed()){
-            if(mode == 1){
-                rotateDegree = 60;
-                carousel.rotateSixthRight();
-                shift(rotateDegree);
-            }
+        // -----------------------------
+        // AUTO-ALIGN GREEN BALL (LB)
+        // -----------------------------
+        if (gamepad2.leftBumperWasPressed()) {
 
-            if(colorShoot[1] == 'g') {
-
-            }else if(colorShoot[0] == 'g'){
-                rotateDegree = 120;
-                carousel.rotateThirdRight();
-                shift(rotateDegree);
-            }else if(colorShoot[2] == 'g'){
-                rotateDegree = -120;
-                carousel.rotateThirdLeft();
-                shift(rotateDegree);
-            }
-            //if(colorIntake[1] == 'g') do nothing
-
-        }
-
-        if(gamepad2.rightBumperWasPressed()){
             if (mode == 1) {
                 rotateDegree = 60;
                 carousel.rotateSixthRight();
                 shift(rotateDegree);
             }
 
-            if(colorShoot[1] == 'p'){
-
-            }else if(colorShoot[0] == 'p'){
+            if (colorShoot[1] == 'g') {
+                // already centered
+            } else if (colorShoot[0] == 'g') {
                 rotateDegree = 120;
                 carousel.rotateThirdRight();
                 shift(rotateDegree);
-            }else if(colorShoot[2] == 'p'){
+            } else if (colorShoot[2] == 'g') {
                 rotateDegree = -120;
                 carousel.rotateThirdLeft();
                 shift(rotateDegree);
             }
-            //if(colorIntake[1] == 'p') do nothing
+        }
+
+        // -----------------------------
+        // AUTO-ALIGN PURPLE BALL (RB)
+        // -----------------------------
+        if (gamepad2.rightBumperWasPressed()) {
+
+            if (mode == 1) {
+                rotateDegree = 60;
+                carousel.rotateSixthRight();
+                shift(rotateDegree);
+            }
+
+            if (colorShoot[1] == 'p') {
+                // already centered
+            } else if (colorShoot[0] == 'p') {
+                rotateDegree = 120;
+                carousel.rotateThirdRight();
+                shift(rotateDegree);
+            } else if (colorShoot[2] == 'p') {
+                rotateDegree = -120;
+                carousel.rotateThirdLeft();
+                shift(rotateDegree);
+            }
         }
     }
 
-    private void shift(int rotateDegree){
-        if(rotateDegree == 120 && mode ==1){
+    // -----------------------------
+    // SHIFT PATTERN ARRAYS BASED ON ROTATION
+    // -----------------------------
+    private void shift(int rotateDegree) {
+
+        // 120° rotation shifts array by one position
+        if (rotateDegree == 120 && mode == 1) {
             shiftRightByOne(colorIntake);
-        }else if(rotateDegree == 120 && mode ==2){
+        } else if (rotateDegree == 120 && mode == 2) {
             shiftRightByOne(colorIntake);
             shiftRightByOne(colorShoot);
         }
-        if(rotateDegree == -120 && mode ==1){
+
+        if (rotateDegree == -120 && mode == 1) {
             shiftLeftByOne(colorIntake);
-        }else if(rotateDegree == -120 && mode ==2){
+        } else if (rotateDegree == -120 && mode == 2) {
             shiftLeftByOne(colorShoot);
             shiftLeftByOne(colorIntake);
         }
-        if(rotateDegree == 60 || rotateDegree == -60){
-            if(mode ==1){
+
+        // 60° rotation switches between intake mode and shoot mode
+        if (rotateDegree == 60 || rotateDegree == -60) {
+            if (mode == 1) {
                 mode = 2;
                 colorShoot = Arrays.copyOf(colorIntake, 3);
-            }else if(mode == 2){
+            } else if (mode == 2) {
                 mode = 1;
-                //colorIntake= Arrays.copyOf(colorShoot, 3);
             }
         }
 
         carouselAngleDeg += rotateDegree;
-        // carouselAngleDeg = normalizeAngle(carouselAngleDeg);
-        if(rotateDegree == -60){
-            if(mode == 1 && carouselAngleDeg%120 == 0){
+
+        // Additional adjustments when crossing 120° boundaries
+        if (rotateDegree == -60) {
+            if (mode == 1 && carouselAngleDeg % 120 == 0) {
                 shiftLeftByOne(colorIntake);
-            }else if(mode ==2 && carouselAngleDeg%120 == 0){
+            } else if (mode == 2 && carouselAngleDeg % 120 == 0) {
                 shiftLeftByOne(colorShoot);
             }
-        }else if(rotateDegree == 60){
-            if(mode == 1 && carouselAngleDeg%120 != 0){
+        } else if (rotateDegree == 60) {
+            if (mode == 1 && carouselAngleDeg % 120 != 0) {
                 shiftRightByOne(colorIntake);
-            }else if(mode ==2 && carouselAngleDeg%120 != 0){
+            } else if (mode == 2 && carouselAngleDeg % 120 != 0) {
                 shiftRightByOne(colorShoot);
                 shiftRightByOne(colorIntake);
             }
         }
-
     }
+
+    // -----------------------------
+    // MANUAL CAROUSEL CONTROL (gamepad2 triggers)
+    // -----------------------------
     private void manualCarouselControls() {
         double carouselPower = 0.0;
+
         if (gamepad2.right_trigger > 0.05) {
-            carouselPower = -gamepad2.right_trigger/2; // backwards
+            carouselPower = -gamepad2.right_trigger / 2;
         } else if (gamepad2.left_trigger > 0.05) {
-            carouselPower = gamepad2.left_trigger/2; // forward
-        } else {
-            carouselPower = 0.0;
+            carouselPower = gamepad2.left_trigger / 2;
         }
+
         carousel.move(carouselPower);
     }
-    private void readColor(){
-        // Read normalized RGBA values
+
+    // -----------------------------
+    // COLOR SENSOR READING
+    // -----------------------------
+    private void readColor() {
+
         NormalizedRGBA colorsfront = colorSensorFront.getNormalizedColors();
         float[] hsv1 = new float[3];
-        // Convert to HSV
         Color.colorToHSV(colorsfront.toColor(), hsv1);
+
         NormalizedRGBA colorsBack = colorSensorBack.getNormalizedColors();
         float[] hsv2 = new float[3];
-        // Convert to HSV
         Color.colorToHSV(colorsBack.toColor(), hsv2);
-        if(isColorGreen(hsv1) && mode == 1){
+
+        // FRONT SENSOR (mode 1)
+        if (isColorGreen(hsv1) && mode == 1) {
             front = 'g';
-        } else if(isColorPurple(hsv1)){
+        } else if (isColorPurple(hsv1)) {
             front = 'p';
-        }else{
+        } else {
             front = 'a';
         }
-        if(isColorGreen(hsv2) && mode ==2){
+
+        // BACK SENSOR (mode 2)
+        if (isColorGreen(hsv2) && mode == 2) {
             back = 'g';
-        } else if(isColorPurple(hsv2) && mode == 2){
+        } else if (isColorPurple(hsv2) && mode == 2) {
             back = 'p';
-        }else if(mode == 2){
+        } else if (mode == 2) {
             back = 'a';
         }
 
-        if(mode == 1 && colorIntake[0] == 'a'){
+        // Fill intake array only when first slot is empty
+        if (mode == 1 && colorIntake[0] == 'a') {
             colorIntake[0] = front;
         }
-
     }
-    private boolean isColorGreen(float[] hsv){
+
+    private boolean isColorGreen(float[] hsv) {
         double hue = hsv[0];
         return (hue >= 100 && hue <= 180);
     }
-    private boolean isColorPurple(float[] hsv){
+
+    private boolean isColorPurple(float[] hsv) {
         double hue = hsv[0];
         return (hue >= 200 && hue <= 245);
     }
+
+    // -----------------------------
+    // ARRAY SHIFT HELPERS
+    // -----------------------------
     public static void shiftRightByOne(char[] a) {
         int n = a.length;
         char last = a[n - 1];
@@ -424,6 +520,7 @@ public class TeleOp20252026_3 extends LinearOpMode {
         }
         a[0] = last;
     }
+
     public static void shiftLeftByOne(char[] a) {
         int n = a.length;
         char first = a[0];
@@ -433,7 +530,10 @@ public class TeleOp20252026_3 extends LinearOpMode {
         a[n - 1] = first;
     }
 
-    private void doAll(){
+    // -----------------------------
+    // MAIN UPDATE LOOP
+    // -----------------------------
+    private void doAll() {
         shooter.updateRPM();
         readColor();
         updateTelemetry();

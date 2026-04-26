@@ -30,136 +30,198 @@ import java.util.Random;
 @Autonomous(name="AutoBlueShoot3BallWithCamera", group="Autonomous")
 public class AutoDrive4MotorRotateBlueShoot3Ball extends LinearOpMode {
 
-    private int delay = 0; //ms delay before backing up
+    // Delay before backing up after shooting
+    private int delay = 0;
 
-    // Drive motors
+    // 4‑motor drivetrain
     private DcMotor leftFront, leftBack, rightFront, rightBack;
-    // Mechanism motors
+
+    // Mechanisms
     private DcMotor intake;
     private Shooter shooter;
     private Carousel carousel;
-    // Smart servo
+
+    // Smart servo (pusher)
     private Servo pusher;
+
+    // Color sensor for ball identification
     private NormalizedColorSensor colorSensor;
 
+    // AprilTag + camera subsystem
     private Camera camera;
 
+    // AprilTag pattern (g/p/p etc.)
     private char[] currentPattern;
 
+    // IMU for heading control
     IMU imu;
 
+    // AprilTag ID for blue alliance goal
     private final int BLUE_GOAL_ID = 20;
+
     int idx = 0;
+
     @Override
     public void runOpMode() throws InterruptedException {
+
+        // Initialize motors, sensors, IMU, camera, shooter, carousel
         initHardware();
+
         telemetry.clearAll();
         telemetry.addLine("Ready. Press Play to start.");
         telemetry.update();
+
+        // If STOP is pressed before PLAY, shut down camera safely
         if (isStopRequested()) {
             camera.shutdownVision();
             return;
         }
+
         waitForStart();
         telemetry.clearAll();
         telemetry.update();
-        imu.resetYaw();;
-        rotateToAngle(-36, 0.7);
+
+        // Reset IMU heading to zero at start
+        imu.resetYaw();
+
+        // Begin autonomous path for BLUE alliance
+        rotateToAngle(-36, 0.7);           // initial alignment
         driveForwardFixedTimeandStop(0.7, 1);
-        rotateToAngle(-115, 0.5);
+        rotateToAngle(-115, 0.5);         // face AprilTag region
 
+        // Try to detect AprilTag pattern
         long start = System.currentTimeMillis();
-        while (opModeIsActive() && (currentPattern=camera.getPattern()) == null && System.currentTimeMillis() - start < 500)
-            mainDo();
-        if(currentPattern == null)
-            searchForTag();
-        mainDo();
-        rotateToAngle(-36,-0.5); //or rotate to zereo
-
-        hardCodeShoot(2500);
-        rotateToAngle(-78, 0.7);
-
-        start = System.currentTimeMillis();
-        //time is for delay before backing up
         while (opModeIsActive()
-                && (System.currentTimeMillis() - start) < delay){
+                && (currentPattern = camera.getPattern()) == null
+                && System.currentTimeMillis() - start < 500) {
             mainDo();
         }
+
+        // If still no tag, perform search sweep
+        if(currentPattern == null)
+            searchForTag();
+
+        mainDo();
+
+        // Return to shooting angle
+        rotateToAngle(-36, -0.5);
+
+        // Shoot 3 balls based on detected pattern
+        hardCodeShoot(2500);
+
+        // Rotate to exit angle
+        rotateToAngle(-78, 0.7);
+
+        // Delay before backing up
+        start = System.currentTimeMillis();
+        while (opModeIsActive()
+                && (System.currentTimeMillis() - start) < delay) {
+            mainDo();
+        }
+
+        // Drive backward to parking zone
         driveForwardFixedTimeandStop(1.4, 1);
 
-        // Standstill, keep updating AprilTag data
+        // Standstill loop: keep updating AprilTag data until STOP
         while (opModeIsActive()) {
             if (isStopRequested()) {
                 camera.shutdownVision();
-                MyGyro.lastKnownHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+                MyGyro.lastKnownHeading =
+                        imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
                 return;
             }
         }
 
-        MyGyro.lastKnownHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+        // Save heading for TeleOp
+        MyGyro.lastKnownHeading =
+                imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+
         camera.shutdownVision();
     }
 
+    /**
+     * Performs a sweep to find the AprilTag if initial detection fails.
+     */
     private void searchForTag() {
         rotateToAngle(140, -0.3);
         rotateToAngle(36, 0.5);
     }
 
+    /**
+     * Rotates robot until IMU yaw is within ±2.5° of target angle.
+     */
     private void rotateToAngle(double angle, double power){
         setRotatePower(power);
-        while (!(imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES) < angle+2.5
-                && imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES) > angle-2.5)){
 
-            if(currentPattern == null) setRotatePower(power);
+        while (!(imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES) < angle + 2.5
+                && imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES) > angle - 2.5)) {
+
+            if(currentPattern == null)
+                setRotatePower(power);
         }
 
         stopDrive();
     }
+
+    /**
+     * Initializes all motors, sensors, IMU, and subsystems.
+     */
     private void initHardware() {
-        // --- Hardware mapping ---
+
+        // Drive motors
         leftFront  = hardwareMap.get(DcMotor.class, "leftFront");
         rightFront = hardwareMap.get(DcMotor.class, "rightFront");
         leftBack   = hardwareMap.get(DcMotor.class, "leftBack");
         rightBack  = hardwareMap.get(DcMotor.class, "rightBack");
+
+        // Mechanisms
         carousel = new Carousel(hardwareMap, Carousel.AUTO);
         intake   = hardwareMap.get(DcMotor.class, "intake");
         shooter  = new Shooter(hardwareMap);
-        camera = new Camera(hardwareMap);
+        camera   = new Camera(hardwareMap);
+
+        // Back color sensor for ball identification
         colorSensor = hardwareMap.get(NormalizedColorSensor.class, "colorSensorBack");
 
+        // IMU initialization using MyGyro wrapper
         MyGyro.createIMU(hardwareMap);
         imu = MyGyro.imu;
-//        imu = hardwareMap.get(IMU.class, "imu");
-//
-//        imu.initialize(new IMU.Parameters(new RevHubOrientationOnRobot(
-//                RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
-//                RevHubOrientationOnRobot.UsbFacingDirection.UP
-//        )));
 
-        // Set drive motor directions (adjust if your robot's wiring is different)
+        // Drive motor directions
         leftFront.setDirection(DcMotorSimple.Direction.FORWARD);
         leftBack.setDirection(DcMotorSimple.Direction.FORWARD);
         rightFront.setDirection(DcMotorSimple.Direction.REVERSE);
         rightBack.setDirection(DcMotorSimple.Direction.REVERSE);
-        // Brake when power is zero for precise stopping
+
+        // Brake mode for precise stopping
         leftFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        // Intake motor direction default
+
+        // Intake defaults
         intake.setDirection(DcMotorSimple.Direction.FORWARD);
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
     }
+
+    /**
+     * Drives forward for a fixed time, then stops.
+     */
     private void driveForwardFixedTimeandStop(double seconds, double power) {
         setDrivePower(power);
         long start = System.currentTimeMillis();
+
         while (opModeIsActive()
                 && (System.currentTimeMillis() - start) < (long)(seconds * 1000)) {
             mainDo();
         }
+
         stopDrive();
     }
+
+    /**
+     * Sets all drive motors to the same power (forward/backward).
+     */
     private void setDrivePower(double p) {
         leftFront.setPower(p);
         leftBack.setPower(p);
@@ -167,112 +229,86 @@ public class AutoDrive4MotorRotateBlueShoot3Ball extends LinearOpMode {
         rightBack.setPower(p);
     }
 
+    /**
+     * Rotates robot until AprilTag is centered horizontally.
+     */
     private void rotateUnitAprilTag(int reqID, double power) {
-        long start = System.currentTimeMillis();
         setRotatePower(power);
-        //time is for backup in case it doesn't see the tag
-        while (!camera.isFacingTag(reqID) && opModeIsActive()){
-//                && (System.currentTimeMillis() - start) < 1000){
+
+        while (!camera.isFacingTag(reqID) && opModeIsActive()) {
             mainDo();
         }
+
         stopDrive();
     }
 
-
-    private void rotateToZero(double power){
-        setRotatePower(power);
-        while (!(imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) < 0.1
-                && imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) > -0.1)){
-            mainDo();
-        }
-        stopDrive();
-    }
-
-    private void rotateUntilPattern(double power){
-        long start = System.currentTimeMillis();
-        setRotatePower(power);
-        //time is for backup in case it doesn't see the tag
-        currentPattern = camera.getPattern();
-
-        while ((currentPattern)[2] == 'a'){
-            //&& opModeIsActive() && (System.currentTimeMillis() - start) < 1000){
-            mainDo();
-            currentPattern = camera.getPattern();
-        }
-        stopDrive();
-    }
-
-    private void rotateUntilColor(char color){
-        int rotcount = 0;
-        while(true){
-            if(color == 'g' && isColorGreen()){
-                break;
-            }
-            if(color == 'p' && isColorPurple()){
-                break;
-            }
-            if(rotcount >= 6){
-                break;
-            }
-            rotcount++;
-            carousel.rotateThirdLeft();
-        }
-    }
-
-    //CCW - negative
-    //CW - positive;
+    /**
+     * Rotates robot for a fixed time.
+     */
     private void rotateFixedTime(double seconds, double power) {
         long start = System.currentTimeMillis();
         setRotatePower(power);
+
         while (opModeIsActive()
                 && (System.currentTimeMillis() - start) < (long)(seconds * 1000)) {
             mainDo();
         }
+
         stopDrive();
     }
+
+    /**
+     * Sets motors for rotation (tank turn).
+     */
     private void setRotatePower(double p){
         leftFront.setPower(p);
         rightFront.setPower(-p);
         leftBack.setPower(p);
         rightBack.setPower(-p);
     }
+
     private void stopDrive() {
         setDrivePower(0.0);
     }
 
     /**
-     * Assumes green ball is preset in center spot
-     * @param RPM
+     * Shoots 3 balls based on detected AprilTag pattern.
+     * Pattern determines carousel rotation order.
      */
     private void hardCodeShoot(double RPM) {
 
+        // Pattern case: green ball in third slot
         if (currentPattern != null && currentPattern[2] == 'g') {
             for (int i = 0; i < 3; i++) {
                 carousel.rotateThirdLeft();
                 while (!carousel.isFinished()) {
-                    //TODO ensure still facing AprilTag on Goal
                     mainDo();
                 }
                 shoot(RPM);
             }
-        } else if (currentPattern != null && currentPattern[1] == 'g') {
+        }
+
+        // Pattern case: green ball in second slot
+        else if (currentPattern != null && currentPattern[1] == 'g') {
             carousel.rotateThirdRight();
             while (!carousel.isFinished()) ;
+
             for (int i = 0; i < 2; i++) {
                 shoot(RPM);
                 carousel.rotateThirdLeft();
                 while (!carousel.isFinished()) {
-                    //TODO ensure still facing AprilTag on Goal
                     mainDo();
                 }
             }
             shoot(RPM);
-        } else {
+        }
+
+        // Pattern case: green ball in first slot
+        else {
             for (int i = 0; i < 2; i++) {
                 shoot(RPM);
                 carousel.rotateThirdLeft();
                 while (!carousel.isFinished()) {
-                    //TODO ensure still facing AprilTag on Goal
                     mainDo();
                 }
             }
@@ -280,47 +316,69 @@ public class AutoDrive4MotorRotateBlueShoot3Ball extends LinearOpMode {
         }
     }
 
+    /**
+     * Executes one shot:
+     * - Spin shooter to RPM
+     * - Wait until RPM target reached
+     * - Push ball
+     * - Pause
+     * - Stop shooter
+     */
     private void shoot(double RPM){
         shooter.start(RPM);
+
         while(opModeIsActive() && !shooter.isTargetMet()){
-            //TODO ensure still facing AprilTag on Goal
             mainDo();
         }
+
         shooter.push();
 
-        //pause 200 ms
+        // Pause to allow ball to clear
         long currMilli = System.currentTimeMillis();
         while(opModeIsActive() && System.currentTimeMillis() - currMilli < 300){
             mainDo();
         }
+
         shooter.stop();
     }
 
+    /**
+     * Reads HSV from back color sensor.
+     */
     private float[] readColor(){
-        // Read normalized RGBA values
         NormalizedRGBA colors = colorSensor.getNormalizedColors();
         float[] hsv = new float[3];
-        // Convert to HSV
         Color.colorToHSV(colors.toColor(), hsv);
-
         return hsv;
     }
+
     private boolean isColorGreen(){
         float[] hsv = readColor();
         double hue = hsv[0];
         return (hue >= 100 && hue <= 180);
     }
+
     private boolean isColorPurple(){
         float[] hsv = readColor();
         double hue = hsv[0];
         return (hue >= 200 && hue <= 245);
     }
 
+    /**
+     * Main loop tasks:
+     * - Update AprilTag detections
+     * - Update shooter RPM
+     * - Update telemetry
+     */
     private void mainDo(){
         camera.updateAprilTagData();
         shooter.updateRPM();
         updateTelemetry();
     }
+
+    /**
+     * Displays AprilTag pattern, distance to goal, and tag IDs.
+     */
     private void updateTelemetry(){
         telemetry.clearAll();
         telemetry.addData("Pattern:", Arrays.toString(currentPattern));

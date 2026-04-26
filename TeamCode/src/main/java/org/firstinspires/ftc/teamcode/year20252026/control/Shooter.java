@@ -6,86 +6,119 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 
-// Encoder specs (from manufacturer data)
-// Shooter motor reference: goBILDA 5202 1:1, 6000 rpm
-// Shooter 5202 motor (1:1) -> 28 pulses per motor revolution at output shaft.
-
-// Servo reference: Studica Multi-Mode Smart Servo (Standard Mode)
-// Servo angle mapping if servo range is 300 degrees (±150) in standard mode.
-// Map 0..300 degrees -> 0.0..1.0 (adjust if your servo API expects different)
+/**
+ * Shooter subsystem:
+ * - Controls a high‑speed flywheel shooter (GoBilda 5202 motor, 1:1)
+ * - Controls a pusher servo that feeds rings/pixels into the flywheel
+ *
+ * This class abstracts RPM control, servo angle mapping, and shooter state.
+ */
 public class Shooter {
 
+    // High‑speed flywheel motor (GoBilda 5202, 6000 RPM, 1:1 gearbox)
     private DcMotorEx shooter;
+
+    // Servo that pushes game elements into the flywheel
     private Servo pusher;
 
-    // Encoder specs (from manufacturer data)
-    // Shooter 5202 motor (1:1) -> 28 pulses per motor revolution at output shaft.
+    // Encoder resolution for GoBilda 5202 motor (1:1 gearbox)
+    // 28 ticks per revolution at the output shaft.
     public static final double SHOOTER_PPR = 28.0;
-    // Servo angle mapping if servo range is 300 degrees (±150) in standard mode.
-    // Map 0..300 degrees -> 0.0..1.0 (adjust if your servo API expects different)
+
+    // Servo range (in degrees) for Studica Smart Servo in standard mode.
+    // Maps 0–300 degrees → 0.0–1.0 servo position.
     private static final double SERVO_FULL_RANGE_DEG = 300.0;
 
+    // RPM tracking
+    private double currentRPM = 0.0;   // measured RPM from encoder
+    private double targetRPM = 0.0;    // desired RPM set by user
 
-    // Shooter RPM tracking
-    private double currentRPM = 0.0;
-    private double targetRPM = 0.0;
-
+    // State flags
     private boolean shooterActive;
     private boolean pusherActive;
 
-    // Shooter motor reference: goBILDA 5202 1:1, 6000 rpm
-    // Servo reference: Studica Multi-Mode Smart Servo (Standard Mode)
+    /**
+     * Constructor: initializes shooter motor and pusher servo.
+     *
+     * @param hardwareMap FTC hardware map
+     */
     public Shooter(HardwareMap hardwareMap){
         shooter  = hardwareMap.get(DcMotorEx.class, "shooter");
-        pusher = hardwareMap.get(Servo.class, "pusher");
+        pusher   = hardwareMap.get(Servo.class, "pusher");
 
-        // Shooter and carousel: set mode
+        // Reverse direction so positive velocity spins flywheel forward.
         shooter.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        // Use encoder feedback for velocity control.
         shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        // FLOAT allows the flywheel to spin down naturally when power = 0.
         shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        // Initialize pusher servo to 0 degrees (calibrated start)
+        // Initialize pusher servo to 0 degrees (safe retracted position).
         setPusherAngle(0.0);
     }
 
+    /**
+     * Sets the pusher servo to a specific angle in degrees.
+     * Converts degrees → normalized servo position (0.0–1.0).
+     *
+     * @param angleDeg desired servo angle (0–300 degrees)
+     */
     public void setPusherAngle(double angleDeg) {
-        // Map 0..SERVO_FULL_RANGE_DEG to 0..1 position
         double pos = RangeClip(angleDeg / SERVO_FULL_RANGE_DEG, 0.0, 1.0);
         pusher.setPosition(pos);
     }
 
+    /**
+     * Clips a value to a given range.
+     */
     private double RangeClip(double v, double min, double max) {
         return Math.max(min, Math.min(max, v));
     }
 
+    /**
+     * Sets the target RPM for the shooter flywheel.
+     * Converts RPM → ticks per second and commands motor velocity.
+     *
+     * @param desiredRPM desired flywheel speed
+     */
     public void setTargetRPM(double desiredRPM) {
-        targetRPM = desiredRPM; // target minimum as specified
-        // Compute ticks per second for desired rpm (we set motor velocity to achieve the desired RPM)
+        targetRPM = desiredRPM;
+
+        // Convert RPM → ticks/sec:
+        // ticks/sec = (RPM * ticks/rev) / 60
         double ticksPerSec = desiredRPM * SHOOTER_PPR / 60.0;
-        // DcMotorEx allows setting velocity in ticks per second
+
+        // DcMotorEx supports velocity control directly in ticks/sec.
         shooter.setVelocity(ticksPerSec);
-        // Immediately after changing speed, update actual currentRPM from encoder
+
+        // Update currentRPM immediately after commanding new velocity.
         updateRPM();
     }
 
     /**
-     * Updates the current RPM of the shooter
-     * @return Returns true when the curent RPM is greater than
-     * or equal to the target RPM.
+     * Updates currentRPM using encoder velocity.
+     * Converts ticks/sec → RPM.
      */
     public void updateRPM() {
-        //get ticks per second
         double ticksPerSec = shooter.getVelocity();
-        //update current RPM ticksPerSec*RPM -> RPM
         currentRPM = ticksPerSec * 60.0 / SHOOTER_PPR;
     }
 
+    /**
+     * Starts the shooter at a desired RPM.
+     * Pusher remains inactive until RPM target is reached.
+     */
     public void start(double desiredRPM){
         setTargetRPM(desiredRPM);
         shooterActive = true;
         pusherActive = false;
     }
 
+    /**
+     * Stops shooter and retracts pusher.
+     */
     public void stop(){
         setTargetRPM(0);
         setPusherAngle(0);
@@ -93,11 +126,20 @@ public class Shooter {
         pusherActive = false;
     }
 
+    /**
+     * Activates pusher to feed a game element into the flywheel.
+     * 80 degrees is a typical “push forward” angle.
+     */
     public void push(){
         pusherActive = true;
         setPusherAngle(80.0);
     }
 
+    /**
+     * Checks whether the shooter has reached its target RPM.
+     *
+     * @return true if currentRPM >= targetRPM
+     */
     public boolean isTargetMet(){
         return currentRPM >= targetRPM;
     }
