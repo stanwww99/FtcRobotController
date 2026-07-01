@@ -37,9 +37,9 @@ Hard‑Coding the Robot to Drive Forward for a Few Seconds
 
 Whenever I begin building autonomous code for my FTC robot, the very first test I run is a simple, hard‑coded command that makes the robot drive forward for a few seconds. It might look basic, but this step is one of the most important parts of early robot development. Moreover, I secure 3 guaranteed points which helps us to have a consistent baseline every match. I tested on both sides of arena in order to ensure that it works on all 4 sides depending on alliance arrangements.
 
-Hard‑Coding the Robot to Drive Forward for a Few Seconds
+Hard‑Coding to shoot 3 Balls randomly 
 
-Whenever I begin building autonomous code for my FTC robot, the very first test I run is a simple, hard‑coded command that makes the robot drive forward for a few seconds. It might look basic, but this step is one of the most important parts of early robot development. Moreover, I secure 3 guaranteed points which helps us to have a consistent baseline every match.
+Adding Camera 
 
 ## Welcome!
 This GitHub repository contains the source code that is used to build an Android app to control a *FIRST* Tech Challenge competition robot.  To use this SDK, download/clone the entire project to your local computer.
