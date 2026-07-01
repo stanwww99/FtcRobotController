@@ -4,6 +4,43 @@ This repository contains my FTC SDK for the DECODE (2025-2026) competition seaso
 
 ## DECODE (2025-2026) competition season
 
+Initally: We start building the chassis to have a foundation for the robot
+When I build and test our team's robot robot, one of the most important foundations is choosing the right drive template. Writing my code in either a 2‑chassis or 4‑chassis tank‑drive template helps me keep my robot’s movement predictable, modular, and easy for my teammates to understand.
+
+🚗 It Gives Me a Clear, Consistent Structure
+Using a tank‑drive template means I always know exactly where my drive logic lives.
+Whether I’m using:
+
+2‑chassis drive (left + right motors)
+
+4‑chassis drive (front‑left, front‑right, back‑left, back‑right)
+
+the template keeps everything organized. This prevents messy code and makes it easy to expand later. For example, the template code has been used to build mini robots for parent-teacher interview nights or for demostration purposes.
+
+Calibration of Highly Precise Motors: 
+
+Color sensors can behave differently depending on lighting, distance, and surface texture. By testing the sensor directly:
+
+I can see raw RGB/HSV values in real time
+
+I can check how readings change under field lighting
+
+I can confirm the sensor is positioned correctly
+
+This prevents surprises during autonomous runs as FTC  robots rely heavily on cameras for AprilTags, object detection, and autonomous navigation. and helps me to determine Green, purple, or not green and purple at the same time  before running any vision pipeline on a real robot.
+
+More over, when everyone uses the same test OpMode, we can quickly identify bugs, wire mistakes, or faulty sensor. 
+
+Automonous idea
+
+Hard‑Coding the Robot to Drive Forward for a Few Seconds
+
+Whenever I begin building autonomous code for my FTC robot, the very first test I run is a simple, hard‑coded command that makes the robot drive forward for a few seconds. It might look basic, but this step is one of the most important parts of early robot development. Moreover, I secure 3 guaranteed points which helps us to have a consistent baseline every match. I tested on both sides of arena in order to ensure that it works on all 4 sides depending on alliance arrangements.
+
+Hard‑Coding the Robot to Drive Forward for a Few Seconds
+
+Whenever I begin building autonomous code for my FTC robot, the very first test I run is a simple, hard‑coded command that makes the robot drive forward for a few seconds. It might look basic, but this step is one of the most important parts of early robot development. Moreover, I secure 3 guaranteed points which helps us to have a consistent baseline every match.
+
 ## Welcome!
 This GitHub repository contains the source code that is used to build an Android app to control a *FIRST* Tech Challenge competition robot.  To use this SDK, download/clone the entire project to your local computer.
 
