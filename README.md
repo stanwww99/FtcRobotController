@@ -1,6 +1,8 @@
 ## NOTICE
 
-This repository contains my FTC SDK for the DECODE (2025-2026) competition season.
+This repository contains my FTC SDK for the DECODE (2025-2026) competition season. By keeping everything inside a proper Android Studio workspace, I make sure my robot code is stable, organized, and easy for both me and my teammates to work with. Documenting my process helps me stay organized, helps my teammates understand the system, and ensures that our robot improves consistently throughout the season.
+
+## DECODE (2025-2026) competition season
 
 ## Welcome!
 This GitHub repository contains the source code that is used to build an Android app to control a *FIRST* Tech Challenge competition robot.  To use this SDK, download/clone the entire project to your local computer.
