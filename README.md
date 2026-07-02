@@ -35,11 +35,23 @@ Automonous idea
 
 Hard‑Coding the Robot to Drive Forward for a Few Seconds
 
-Whenever I begin building autonomous code for my FTC robot, the very first test I run is a simple, hard‑coded command that makes the robot drive forward for a few seconds. It might look basic, but this step is one of the most important parts of early robot development. Moreover, I secure 3 guaranteed points which helps us to have a consistent baseline every match. I tested on both sides of arena in order to ensure that it works on all 4 sides depending on alliance arrangements.
+Whenever I begin building autonomous code for my FTC robot, the very first test I run is a simple, hard‑coded command that makes the robot drive forward for a few seconds. Even though it seems basic, earning those 3 points is strategically important for my team and sets the foundation for more advanced autonomous routines. Moreover, I secure 3 guaranteed points which helps us to have a consistent baseline every match. I tested on both sides of arena in order to ensure that it works on all 4 sides depending on alliance arrangements as there are 2 arrangements for blue and 2 for red alliance.
 
 Hard‑Coding to shoot 3 Balls randomly 
 
+One of the biggest upgrades I made to my robot’s autonomous was adding a routine that shoots the ball using my carousel mechanis, nut making this reliable required fine‑tuning every degree. Precise measurements is one of the most important parts of getting a consistent, competition‑ready shooting routine. This wasn’t just a cool feature but it was a strategic decision that helps my robot score early, stay competitive, and take advantage of the game rules right from the start of the match. Shooting during autonomous is one of the most reliable ways to earn points before tele‑op even begins. By shooting I can gain at least 3 points for overflow 1 point per ball for 3 balls and max most likely 9 points if balls completely go in 3 points per ball. 
+
 Adding Camera 
+
+As my robot became more advanced, I realized that relying only on sensors and hard‑coded timing wasn’t enough. To make my autonomous smarter, more accurate, and more adaptable, I added a camera system that handles two major tasks: sorting the ball and reading AprilTags. This upgrade transformed how my robot understands the field and reacts during autonomous. Using a camera allows me to visually identify the ball instead of guessing based on timing or simple sensors. With vision:
+
+I can detect the ball’s color or position
+
+I can confirm the ball is correctly loaded before shooting
+
+I can avoid misfires caused by bad alignment
+
+I can sort balls faster and more reliably
 
 ## Welcome!
 This GitHub repository contains the source code that is used to build an Android app to control a *FIRST* Tech Challenge competition robot.  To use this SDK, download/clone the entire project to your local computer.
