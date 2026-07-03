@@ -41,17 +41,10 @@ Hard‑Coding to shoot 3 Balls randomly
 
 One of the biggest upgrades I made to my robot’s autonomous was adding a routine that shoots the ball using my carousel mechanis, nut making this reliable required fine‑tuning every degree. Precise measurements is one of the most important parts of getting a consistent, competition‑ready shooting routine. This wasn’t just a cool feature but it was a strategic decision that helps my robot score early, stay competitive, and take advantage of the game rules right from the start of the match. Shooting during autonomous is one of the most reliable ways to earn points before tele‑op even begins. By shooting I can gain at least 3 points for overflow 1 point per ball for 3 balls and max most likely 9 points if balls completely go in 3 points per ball. 
 
-Adding Camera 
+Adding IMU, Color Sensor, and Camera 
 
-As my robot became more advanced, I realized that relying only on sensors and hard‑coded timing wasn’t enough. To make my autonomous smarter, more accurate, and more adaptable, I added a camera system that handles two major tasks: sorting the ball and reading AprilTags. This upgrade transformed how my robot understands the field and reacts during autonomous. Using a camera allows me to visually identify the ball instead of guessing based on timing or simple sensors. With vision:
+When I build autonomous routines for my FTC robot, adding both the IMU and the camera is what transforms basic movement into true navigation. The IMU gives the robot a stable sense of direction, letting me rotate to precise angles like 36°, 115°, and 78° without drifting. You can see this directly in the code where the robot uses imu.getRobotYawPitchRollAngles().getYaw() to lock onto headings and imu.resetYaw() to start with a clean orientation. The camera adds the second half of navigation: environment awareness. It detects AprilTags (camera.getPattern(), camera.updateAprilTagData()) and determines distance and facing direction (camera.getDistance(RED_GOAL_ID), camera.getFacing(RED_GOAL_ID)). Together, these sensors let the robot know where it is and where it needs to go. The IMU keeps the robot’s rotation accurate, while the camera ensures the robot aligns with the correct goal and shoots based on the detected ball pattern. Without these two systems working together, autonomous movement would be blind, inconsistent, and unable to adapt to real‑world field conditions.  For Color Sensor, I added the back-facing color sensor to give the robot a reliable way to identify which ball is currently sitting in the carousel before shooting. In my autonomous code, the sensor reads HSV values (colorSensor.getNormalizedColors()) and checks the hue range to determine whether the ball is green or purple. This matters because the AprilTag pattern tells the robot the correct shooting order, but the robot still needs to confirm the ball’s actual color before firing.  As a reuslt I can go for 9 points per round of auto and 2 points for each ball in the correct pattern order
 
-I can detect the ball’s color or position
-
-I can confirm the ball is correctly loaded before shooting
-
-I can avoid misfires caused by bad alignment
-
-I can sort balls faster and more reliably
 
 ## Welcome!
 This GitHub repository contains the source code that is used to build an Android app to control a *FIRST* Tech Challenge competition robot.  To use this SDK, download/clone the entire project to your local computer.
