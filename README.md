@@ -38,7 +38,10 @@ Before building advanced autonomous routines, it’s always better to start with
 2nd round of Optimization in TeleOp
 
 TeleOp20252026_2 is a more modular, sensor‑aware TeleOp that adds field‑oriented driving using the IMU and wraps the carousel/shooter into subsystem classes; the IMU makes joystick control intuitive relative to the field, and putting the carousel in its own class isolates encoder/state logic so the driver can use both manual and precise automatic rotations reliably. 
+
 3rd Round of Optimizaion in Teleop
+
+TeleOp20252026_3 is a clear improvement over TeleOp20252026_2 because it evolves from a “mechanism‑only” driver mode into a sensor‑aware, pattern‑tracking, and state‑driven control system. The earlier TeleOp20252026_2 focuses mainly on manual shooter RPM control, manual/automatic carousel rotation, and field‑oriented drive. TeleOp20252026_3 keeps all of those strengths but adds a full dual‑color‑sensor pipeline, allowing the robot to track ball colors in both intake mode and shooting mode. Instead of the driver guessing which ball is in each carousel slot, the code builds and maintains two pattern arrays (colorIntake and colorShoot) and updates them automatically as the carousel rotates. This makes auto‑alignment features—like LB to center green or RB to center purple—far more reliable because the robot knows exactly where each ball is. The IMU remains essential because field‑oriented drive still depends on accurate yaw readings to rotate joystick vectors into the field frame, giving the driver intuitive control even while performing complex carousel operations. Finally, TeleOp20252026_3 improves architecture by keeping the carousel in its own subsystem class and adding a unified doAll() loop that updates shooter RPM, reads color sensors, and refreshes telemetry every cycle. This creates a cleaner, more modular, and more intelligent TeleOp that reduces driver workload, increases shooting accuracy, and prepares the robot for advanced autonomous behavior later in the season.
 
 Automonous idea
 
